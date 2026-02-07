@@ -15,11 +15,9 @@
 
 using json = nlohmann::json;
 
-// Global room list + mutex
 std::vector<Room> rooms;
 std::mutex room_mutex;
 
-// Send all bytes (send() can return partial)
 static void send_all(int fd, const char* buf, size_t len) {
     while (len > 0) {
         ssize_t n = send(fd, buf, len, 0);
@@ -29,7 +27,6 @@ static void send_all(int fd, const char* buf, size_t len) {
     }
 }
 
-// Helper: send JSON to a client
 void send_json(int fd, const json& j) {
     std::string s = j.dump() + "\n";
     send_all(fd, s.c_str(), s.size());
@@ -41,11 +38,10 @@ void game_loop(Room* room) {
         {
             std::lock_guard<std::mutex> lock(room_mutex);
 
-            // Move bullets
+          
             for (auto& b : room->state.bullets) {
                 b.y += b.direction;
 
-                // Check collision with players
                 for (auto& p : room->players) {
                     if (p.id != b.owner && p.x == b.x && p.y == b.y) {
                         p.lives--;
@@ -54,7 +50,7 @@ void game_loop(Room* room) {
                 }
             }
 
-            // Remove bullets off-screen
+        
             room->state.bullets.erase(
                 std::remove_if(room->state.bullets.begin(),
                                room->state.bullets.end(),
@@ -62,7 +58,7 @@ void game_loop(Room* room) {
                 room->state.bullets.end()
             );
 
-            // Check game over
+      
             for (auto& p : room->players) {
                 if (p.lives <= 0) {
                     json msg = {{"type","GAME_OVER"},{"winner_id", (p.id==1?2:1)}};
@@ -72,7 +68,6 @@ void game_loop(Room* room) {
                 }
             }
 
-            // Broadcast state
             json stateMsg;
             stateMsg["type"] = "STATE_UPDATE";
             stateMsg["players"] = json::array();
@@ -103,8 +98,6 @@ void game_loop(Room* room) {
 }
 
 
-
-// Client handler: read newline-delimited JSON (TCP can split/merge packets)
 void handle_client(int client_fd) {
     int one = 1;
     setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
@@ -166,7 +159,7 @@ void handle_client(int client_fd) {
                         thisPlayer.fd = client_fd;
                         thisPlayer.id = 2;
                         thisPlayer.name = msg["name"];
-                        // Explicit initialization
+            
                         thisPlayer.x = 10;
                         thisPlayer.y = 0; // top row
                         thisPlayer.lives = 3;
@@ -174,12 +167,10 @@ void handle_client(int client_fd) {
                         r.players.push_back(thisPlayer);
                         playerRoom = &r;
 
-                        // Confirm joining and start game
                         send_json(client_fd, {{"type","ROOM_JOINED"},{"player_id",2}});
                         send_json(r.players[0].fd, {{"type","GAME_START"}});
                         send_json(r.players[1].fd, {{"type","GAME_START"}});
 
-                        // Start game loop in a separate thread (detached)
                         std::thread(game_loop, &r).detach();
                         found = true;
                         break;
@@ -195,7 +186,6 @@ void handle_client(int client_fd) {
                 std::string action = msg["action"];
                 std::lock_guard<std::mutex> lock(room_mutex);
 
-                // Find this client's player in the room (pointer can be invalidated by vector ops, so use index)
                 int idx = -1;
                 for (size_t i = 0; i < playerRoom->players.size(); i++) {
                     if (playerRoom->players[i].fd == client_fd) { idx = (int)i; break; }
@@ -224,7 +214,7 @@ void handle_client(int client_fd) {
         }
     }
 
-    // Remove player from room when disconnecting
+
     if (playerRoom) {
         std::lock_guard<std::mutex> lock(room_mutex);
         playerRoom->players.erase(
@@ -237,7 +227,6 @@ void handle_client(int client_fd) {
     close(client_fd);
 }
 
-// MAIN server loop
 int main() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) { perror("socket failed"); return 1; }
