@@ -3,18 +3,18 @@
 #include <vector>
 
 struct Player {
-    int fd;         // Client socket
-    int id;         // 1 or 2
+    int fd;        
+    int id;        
     std::string name;
-    int x;          // horizontal start pos
-    int y;          // vertical pos
-    int lives;      // 3
+    int x;          
+    int y;          
+    int lives;     
 };
 
 struct Bullet {
     int x, y;
-    int owner;      // player_id
-    int direction;  // +1 = down, -1 = up
+    int owner;      
+    int direction;  
 };
 
 struct GameState {
