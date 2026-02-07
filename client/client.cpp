@@ -12,7 +12,6 @@
 #include <netinet/tcp.h>
 #include "../common/json.hpp"
 
-// Alternate screen: no scrollback during game (clean exit when done)
 static void exit_alternate_screen() {
     std::cout << "\033[?1049l" << std::flush;
 }
@@ -38,12 +37,11 @@ std::vector<Player> players;
 std::vector<Bullet> bullets;
 int sock;
 
-// For player 2, flip Y so "my ship at bottom, enemy at top" on screen
 static int display_y(int y) {
     return (player_id == 2) ? (19 - y) : y;
 }
 
-// Terminal input without Enter
+
 int getch() {
     struct termios oldt, newt;
     int ch;
@@ -56,7 +54,6 @@ int getch() {
     return ch;
 }
 
-// Send all bytes (send() can return partial)
 static void send_all(const char* buf, size_t len) {
     while (len > 0) {
         ssize_t n = send(sock, buf, len, 0);
@@ -66,25 +63,23 @@ static void send_all(const char* buf, size_t len) {
     }
 }
 
-// Send JSON to server
 void send_json(const json &j) {
     std::string s = j.dump() + "\n";
     send_all(s.c_str(), s.size());
 }
 
-// Heart display: filled ♥, empty ♡
+
 static std::string lives_hearts(int lives) {
     std::string s;
     for (int i = 0; i < 3; i++) s += (i < lives) ? "\xe2\x99\xa5" : "\xe2\x99\xa1";  // ♥ / ♡
     return s;
 }
 
-// Render 20x20 grid (your ship at bottom, enemy at top)
 void render() {
     std::lock_guard<std::mutex> lock(state_mutex);
     std::vector<std::string> grid(20, std::string(20, ' '));
 
-    // Pixel-art ships (2 rows each): nose + body
+    
     for (auto &p : players) {
         int dy = display_y(p.y);
         bool is_me = (p.id == player_id);
@@ -100,7 +95,7 @@ void render() {
         }
     }
 
-    // Missile-style bullets (head + trail)
+
     for (auto &b : bullets) {
         int dy = display_y(b.y);
         bool going_up = (b.owner == player_id);  // my bullet goes up toward enemy
@@ -110,14 +105,13 @@ void render() {
         if (tail_dy >= 0 && tail_dy < 20) grid[tail_dy][b.x] = '|';  // trail
     }
 
-    // Lives: my and enemy (hearts)
+ 
     int my_lives = 3, enemy_lives = 3;
     for (auto &p : players) {
         if (p.id == player_id) my_lives = p.lives;
         else enemy_lives = p.lives;
     }
-
-    // Clear screen and move cursor to top (works in threads / WSL)
+    
     std::cout << "\033[2J\033[H";
     std::cout << "  Enemy (top)\n  +--------------------+\n";
     for (auto &row : grid)
@@ -128,7 +122,7 @@ void render() {
     std::cout << std::flush;
 }
 
-// Listener thread: parse newline-delimited JSON messages
+
 void listen_server() {
     std::string buf;
     char chunk[1024];
@@ -186,7 +180,6 @@ void listen_server() {
     }
 }
 
-// Input thread (only send once game has started)
 void input_thread() {
     while (true) {
         int c = getch();
@@ -225,7 +218,6 @@ int main() {
     int one = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 
-    // Name and room
     std::cout << "Enter your name: ";
     std::string name;
     std::cin >> name;
@@ -242,7 +234,6 @@ int main() {
     if (choice == 1) msg = {{"type","CREATE_ROOM"},{"room",room},{"name",name}};
     else msg = {{"type","JOIN_ROOM"},{"room",room},{"name",name}};
 
-    // Start listener and input threads FIRST so we're ready to receive the response
     std::thread(listen_server).detach();
     std::thread(input_thread).detach();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));  // let listener reach recv()
