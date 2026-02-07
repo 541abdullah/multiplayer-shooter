@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build from project root (multiplayer-shooter/). No make required.
+
 set -e
 cd "$(dirname "$0")"
 echo "Building server..."
